@@ -6,9 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class MusicBot(commands.Bot):
-    def __init__(self, command_prefix):
-        self.TOKEN = os.getenv('DISCORD_TOKEN')
-        intents = discord.Intents(messages=True, message_content=True, guilds=True, voice_states=True)
+    def __init__(self, command_prefix, intents):
         super().__init__(command_prefix=command_prefix, intents=intents)
 
     async def on_ready(self):
@@ -33,9 +31,9 @@ class MusicBot(commands.Bot):
             
             await voice.channel.connect()
     
-    def start(self):
+    def start_bot(self, token):
         self.init_commands()
-        self.run(self.TOKEN)
+        self.run(token)
 
 # @client.event
 # async def on_message(message):
@@ -47,8 +45,11 @@ class MusicBot(commands.Bot):
 #         await message.channel.send("hi")
 
 def main():
-    bot = MusicBot("$")
-    bot.start()
+    token = os.getenv('DISCORD_TOKEN')
+    intents = discord.Intents(messages=True, message_content=True, guilds=True, voice_states=True)
+    bot = MusicBot(command_prefix="$", intents=intents)
+
+    bot.start_bot(token)
 
 if __name__ == "__main__":
     main()
