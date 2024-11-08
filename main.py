@@ -75,7 +75,7 @@ class MusicBot(commands.Bot):
             self.vc = await voice.channel.connect()
             await ctx.send(f"Currently playing: **{yt.title}**")
             self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
-            while self.vc.is_playing():
+            while(self.vc.is_playing() or self.vc.is_paused()):
                 await asyncio.sleep(0.1)
             await self.vc.disconnect()
             self.vc = None
