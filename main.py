@@ -41,6 +41,10 @@ class MusicBot(commands.Bot):
         @self.command(name="play")
         async def play(ctx, link=None):
             if(link == None):
+                if(self.vc != None and self.vc.is_paused()):
+                    await ctx.send("Resuming playback.")
+                    self.vc.resume()
+                    return
                 await ctx.send("No video specified.")
                 return
             
@@ -48,9 +52,9 @@ class MusicBot(commands.Bot):
                 await ctx.send("Currently playing in other voice channel.")
                 return
 
-            # uses pytube to gather audio stream from yt link, handles error if invalid link
+            # uses pytubefix to gather audio stream from yt link, handles error if invalid link
             try:
-                yt = YouTube(link, use_po_token=True)
+                yt = YouTube(link, use_oauth=True) # odd
             except VideoUnavailable:
                 return
             
@@ -76,6 +80,20 @@ class MusicBot(commands.Bot):
             await self.vc.disconnect()
             self.vc = None
         
+        @self.command(name="pause")
+        async def pause(ctx):
+            # should i check if even in voice channel?
+            if(self.vc == None):
+                await ctx.send("Not currently in a call.")
+                return
+            
+            if(not self.vc.is_playing()):
+                await ctx.send("Not currently playing anything.")
+                return
+
+            await ctx.send("Pausing playback.")
+            await self.vc.pause()
+        
         # stops playback and leaves call
         @self.command(name="stop")
         async def stop(ctx):
@@ -84,8 +102,9 @@ class MusicBot(commands.Bot):
                 await ctx.send("Not currently in a call.")
                 return
 
-            await ctx.send("Leaving call.")
+            await ctx.send("Stopping playback.")
             await self.vc.disconnect()
+            self.vc = None
 
     def start_bot(self, token):
         self.init_commands()
@@ -108,3 +127,4 @@ if __name__ == "__main__":
 #   > maybe add function to convert spotify song title to youtube link?
 #       > much more involved and possibly flawed...
 #   > volume control?
+#   > skip/timestamps
