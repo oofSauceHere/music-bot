@@ -50,7 +50,7 @@ class MusicBot(commands.Bot):
 
             # uses pytube to gather audio stream from yt link, handles error if invalid link
             try:
-                yt = YouTube(link)
+                yt = YouTube(link, use_po_token=True)
             except VideoUnavailable:
                 return
             
