@@ -87,7 +87,6 @@ class MusicBot(commands.Bot):
             await ctx.send("Leaving call.")
             await self.vc.disconnect()
 
-    
     def start_bot(self, token):
         self.init_commands()
         self.run(token)
