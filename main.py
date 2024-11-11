@@ -16,8 +16,8 @@ class MusicBot(commands.Bot):
         super().__init__(command_prefix=command_prefix, intents=intents)
         self.remove_command("help")
         self.vc = None
-        self.queue = deque()
-        self.loop_song = False
+        self.vid_queue = deque()
+        self.loop_vid = False
 
     async def on_ready(self):
         print(f"Logged in as {self.user}.")
@@ -49,52 +49,55 @@ class MusicBot(commands.Bot):
                 await ctx.send("You need to be in a voice channel.")
                 return
             
-            if(link != None):
-                if(self.queue):
-                    self.enqueue(ctx, link) # possibly idiotic
-                    return
-                else:
-                    try:
-                        yt = YouTube(link, use_oauth=True)
-                    except VideoUnavailable:
+            # oh my goodness
+            if(link == None):
+                if(self.vc != None):
+                    if(self.vc.is_paused()):
+                        await ctx.send("Resuming playback.")
+                        self.vc.resume()
                         return
-                    
-                    self.queue.append(yt)
-
-            if(self.vc != None):
-                if(self.vc.is_paused()):
-                    await ctx.send("Resuming playback.")
-                    self.vc.resume()
+                    else:
+                        await ctx.send("Already playing video.")
+                        return
+                elif(not self.vid_queue):
+                    await ctx.send("Queue is empty/nothing currently playing.")
+                    return
+            else:
+                try:
+                    yt = YouTube(link)
+                except VideoUnavailable:
+                    return
+                
+                if(self.vc != None):
+                    await ctx.send(f"Added **{yt.title}** to queue.")
+                    self.vid_queue.append(yt)
                     return
                 else:
-                    await ctx.send("Already playing video.")
-                    return
-            elif(not self.queue):
-                await ctx.send("Queue is empty/nothing currently playing.")
-                return
-
-            # if(self.vc != None):
-            #     await ctx.send("Currently playing in other voice channel.")
-            #     return
-
-            yt = self.queue[0]
-            self.dequeue()
-            
-            audio = yt.streams.filter(only_audio=True).first()
-            audio_buffer = io.BytesIO()
-            audio.stream_to_buffer(audio_buffer)
-            audio_buffer.seek(0)
-            # audio.download(filename="temp", mp3=True)
-            # await ctx.send(link)
-            
-            if(self.queue.empty()):
-                self.queue.append()
+                    self.vid_queue.append(yt)
             
             # connects to voice channel and idles while audio plays
             self.vc = await voice.channel.connect()
-            await ctx.send(f"Currently playing: **{yt.title}**")
-            while(loop or len(self.queue) != 0):
+            prev_audio = None
+            while((self.vid_queue or self.loop_vid) and self.vc != None):
+                audio_buffer = None
+                if(self.loop_vid and not prev_audio == None):
+                    audio_buffer = prev_audio
+                    audio_buffer.seek(0)
+                else:
+                    yt = self.vid_queue[0]
+                    self.vid_queue.popleft()
+                    
+                    audio = yt.streams.filter(only_audio=True).first()
+                    audio_buffer = io.BytesIO()
+                    prev_audio = audio_buffer
+                    audio.stream_to_buffer(audio_buffer)
+                    audio_buffer.seek(0)
+                    # audio.download(filename="temp", mp3=True)
+                    # await ctx.send(link)
+
+                await ctx.send(f"Currently playing **{yt.title}**")
                 self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
+
                 while(self.vc.is_playing() or self.vc.is_paused()):
                     await asyncio.sleep(0.1)
             await self.vc.disconnect()
@@ -102,31 +105,53 @@ class MusicBot(commands.Bot):
 
         @self.command(name="loop")
         async def loop(ctx):
-            self.loop_song = not self.loop_song
-            await ctx.send(f"Looping **{self.queue[0].title}**")
+            self.loop_vid = not self.loop_vid
+            await ctx.send(f"Loop set to **{self.loop_vid}**")
         
         @self.command(name="queue")
         async def queue(ctx):
             output = ""
-            for yt, i in enumerate(self.queue):
-                output += f"{i}: **{yt.title}**\n"
+            for i, yt in enumerate(self.vid_queue):
+                output = output + f"**{i+1}** - {yt.title}\n"
             
-            await ctx.send(output[:-1])
+            if(self.vid_queue):
+                await ctx.send(output[:-1])
+            else:
+                await ctx.send("Queue is empty.")
         
-        @self.command(name="enqueue")
-        async def enqueue(ctx, link):
+        @self.command(name="add")
+        async def add(ctx, link=None):
+            if(link == None):
+                await ctx.send("Please specify link.")
+                return
+
             try:
-                yt = YouTube(link, use_oauth=True)
+                yt = YouTube(link)
             except VideoUnavailable:
                 return
             
-            await ctx.send("Added **{yt.title}** to queue.")
-            self.queue.append(yt)
+            await ctx.send(f"Added **{yt.title}** to queue.")
+            self.vid_queue.append(yt)
         
-        @self.command(name="dequeue")
-        async def dequeue(ctx):
-            if(len(self.queue) > 0):
-                self.queue.popleft()
+        @self.command(name="delete")
+        async def delete(ctx, index=1):
+            if(not self.vid_queue):
+                await ctx.send("Queue is empty.")
+                return
+            
+            if(index <= len(self.vid_queue) and index > 0):
+                await ctx.send(f"Removed **{self.vid_queue[index-1].title}** from queue.")
+                del self.vid_queue[index-1]
+            else:
+                await ctx.send("Invalid index.")
+        
+        @self.command(name="skip")
+        async def skip(ctx):
+            if(self.vc == None):
+                await ctx.send("Not currently in a call.")
+                return
+            
+            self.vc.stop()
         
         @self.command(name="pause")
         async def pause(ctx):
