@@ -50,7 +50,7 @@ class MusicBot(commands.Bot):
                 return
             
             if(link != None):
-                if(queue):
+                if(self.queue):
                     self.enqueue(ctx, link) # possibly idiotic
                     return
                 else:
@@ -69,7 +69,7 @@ class MusicBot(commands.Bot):
                 else:
                     await ctx.send("Already playing video.")
                     return
-            elif(not queue):
+            elif(not self.queue):
                 await ctx.send("Queue is empty/nothing currently playing.")
                 return
 
@@ -77,7 +77,7 @@ class MusicBot(commands.Bot):
             #     await ctx.send("Currently playing in other voice channel.")
             #     return
 
-            yt = queue[0]
+            yt = self.queue[0]
             self.dequeue()
             
             audio = yt.streams.filter(only_audio=True).first()
