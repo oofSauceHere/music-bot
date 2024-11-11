@@ -17,6 +17,7 @@ class MusicBot(commands.Bot):
         self.remove_command("help")
         self.vc = None
         self.queue = deque()
+        self.loop_song = False
 
     async def on_ready(self):
         print(f"Logged in as {self.user}.")
@@ -50,7 +51,7 @@ class MusicBot(commands.Bot):
             
             if(link != None):
                 if(queue):
-                    enqueue(ctx, link) # possibly idiotic
+                    self.enqueue(ctx, link) # possibly idiotic
                     return
                 else:
                     try:
@@ -86,7 +87,7 @@ class MusicBot(commands.Bot):
             #     return
 
             yt = queue[0]
-            dequeue()
+            self.dequeue()
             
             audio = yt.streams.filter(only_audio=True).first()
             audio_buffer = io.BytesIO()
@@ -110,7 +111,7 @@ class MusicBot(commands.Bot):
 
         @self.command(name="loop")
         async def loop(ctx):
-            self.loop = True
+            self.loop_song = not self.loop_song
         
         @self.command(name="queue")
         async def queue(ctx):
