@@ -103,6 +103,7 @@ class MusicBot(commands.Bot):
         @self.command(name="loop")
         async def loop(ctx):
             self.loop_song = not self.loop_song
+            await ctx.send(f"Looping **{self.queue[0].title}**")
         
         @self.command(name="queue")
         async def queue(ctx):
