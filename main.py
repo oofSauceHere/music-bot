@@ -61,15 +61,6 @@ class MusicBot(commands.Bot):
                     
                     self.queue.append(yt)
 
-            if(link == None):
-                if(self.vc != None and self.vc.is_paused()):
-                    await ctx.send("Resuming playback.")
-                    self.vc.resume()
-                    return
-
-                await ctx.send("No video specified.")
-                return
-
             if(self.vc != None):
                 if(self.vc.is_paused()):
                     await ctx.send("Resuming playback.")
