@@ -4,6 +4,7 @@ import os
 import io
 import asyncio
 import discord
+from collections import deque
 from discord.ext import commands
 from pytubefix import YouTube
 from pytubefix.exceptions import VideoUnavailable
@@ -15,6 +16,7 @@ class MusicBot(commands.Bot):
         super().__init__(command_prefix=command_prefix, intents=intents)
         self.remove_command("help")
         self.vc = None
+        self.queue = deque()
 
     async def on_ready(self):
         print(f"Logged in as {self.user}.")
@@ -40,23 +42,51 @@ class MusicBot(commands.Bot):
         # joins user's call and plays song from given youtube link
         @self.command(name="play")
         async def play(ctx, link=None):
+            # doesn't play if user is not in a voice channel
+            voice = ctx.author.voice
+            if(voice == None):
+                await ctx.send("You need to be in a voice channel.")
+                return
+            
+            if(link != None):
+                if(queue):
+                    enqueue(ctx, link) # possibly idiotic
+                    return
+                else:
+                    try:
+                        yt = YouTube(link, use_oauth=True)
+                    except VideoUnavailable:
+                        return
+                    
+                    self.queue.append(yt)
+
             if(link == None):
                 if(self.vc != None and self.vc.is_paused()):
                     await ctx.send("Resuming playback.")
                     self.vc.resume()
                     return
+
                 await ctx.send("No video specified.")
                 return
-            
+
             if(self.vc != None):
-                await ctx.send("Currently playing in other voice channel.")
+                if(self.vc.is_paused()):
+                    await ctx.send("Resuming playback.")
+                    self.vc.resume()
+                    return
+                else:
+                    await ctx.send("Already playing video.")
+                    return
+            elif(not queue):
+                await ctx.send("Queue is empty/nothing currently playing.")
                 return
 
-            # uses pytubefix to gather audio stream from yt link, handles error if invalid link
-            try:
-                yt = YouTube(link, use_oauth=True) # odd
-            except VideoUnavailable:
-                return
+            # if(self.vc != None):
+            #     await ctx.send("Currently playing in other voice channel.")
+            #     return
+
+            yt = queue[0]
+            dequeue()
             
             audio = yt.streams.filter(only_audio=True).first()
             audio_buffer = io.BytesIO()
@@ -64,25 +94,49 @@ class MusicBot(commands.Bot):
             audio_buffer.seek(0)
             # audio.download(filename="temp", mp3=True)
             # await ctx.send(link)
-
-            # doesn't play if user is not in a voice channel
-            voice = ctx.author.voice
-            if(voice == None):
-                await ctx.send("You need to be in a voice channel.")
-                return
+            
+            if(self.queue.empty()):
+                self.queue.append()
             
             # connects to voice channel and idles while audio plays
             self.vc = await voice.channel.connect()
             await ctx.send(f"Currently playing: **{yt.title}**")
-            self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
-            while(self.vc.is_playing() or self.vc.is_paused()):
-                await asyncio.sleep(0.1)
+            while(loop or len(self.queue) != 0):
+                self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
+                while(self.vc.is_playing() or self.vc.is_paused()):
+                    await asyncio.sleep(0.1)
             await self.vc.disconnect()
             self.vc = None
+
+        @self.command(name="loop")
+        async def loop(ctx):
+            self.loop = True
+        
+        @self.command(name="queue")
+        async def queue(ctx):
+            output = ""
+            for yt, i in enumerate(self.queue):
+                output += f"{i}: **{yt.title}**\n"
+            
+            await ctx.send(output[:-1])
+        
+        @self.command(name="enqueue")
+        async def enqueue(ctx, link):
+            try:
+                yt = YouTube(link, use_oauth=True)
+            except VideoUnavailable:
+                return
+            
+            await ctx.send("Added **{yt.title}** to queue.")
+            self.queue.append(yt)
+        
+        @self.command(name="dequeue")
+        async def dequeue(ctx):
+            if(len(self.queue) > 0):
+                self.queue.popleft()
         
         @self.command(name="pause")
         async def pause(ctx):
-            # should i check if even in voice channel?
             if(self.vc == None):
                 await ctx.send("Not currently in a call.")
                 return
@@ -97,7 +151,6 @@ class MusicBot(commands.Bot):
         # stops playback and leaves call
         @self.command(name="stop")
         async def stop(ctx):
-            # should i check if even in voice channel?
             if(self.vc == None):
                 await ctx.send("Not currently in a call.")
                 return
