@@ -19,6 +19,7 @@ class MusicBot(commands.Bot):
         self.vc = None
         self.vid_queue = deque()
         self.loop_vid = False
+        self.curr_vid = None
 
     # bot starts
     async def on_ready(self):
@@ -63,7 +64,7 @@ class MusicBot(commands.Bot):
                         await ctx.send("Already playing video.")
                         return
                 elif(not self.vid_queue):
-                    await ctx.send("Queue is empty/nothing currently playing.")
+                    await ctx.send("Queue is empty/not currently playing anything.")
                     return
             else:
                 # attempt to access YouTube link
@@ -106,6 +107,7 @@ class MusicBot(commands.Bot):
                 # play audio in vc
                 await ctx.send(f"Currently playing **{yt.title}**.")
                 self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
+                self.curr_vid = yt.title
 
                 # busy loop until song finishes
                 while(self.vc.is_playing() or self.vc.is_paused()):
@@ -114,6 +116,14 @@ class MusicBot(commands.Bot):
             # leave vc
             await self.vc.disconnect()
             self.vc = None
+            self.curr_vid = None
+        
+        @self.command(name="playing")
+        async def playing(ctx):
+            if(self.curr_vid == None):
+                await ctx.send("Not currently playing anything.")
+                return
+            await ctx.send(f"Currently playing **{self.curr_vid.title}**.")
 
         # toggle loop variable
         @self.command(name="loop")
@@ -126,7 +136,7 @@ class MusicBot(commands.Bot):
         async def queue(ctx):
             output = ""
             for i, yt in enumerate(self.vid_queue):
-                output = output + f"**{i+1}** - {yt.title}\n"
+                output = output + f"**{i+1} - {yt.title}**\n"
             
             if(self.vid_queue):
                 await ctx.send(output[:-1]) # strip final newline
@@ -162,6 +172,18 @@ class MusicBot(commands.Bot):
             else:
                 await ctx.send("Invalid index.")
         
+        # change position of video in queue
+        @self.command(name="move")
+        async def move(ctx, old, new):
+            # bounds checking
+            if(old <= len(self.vid_queue) and old > 0 and new <= len(self.vid_queue) and new > 0):
+                yt = self.vid_queue[old-1]
+                self.vid_queue.insert(new-1, yt)
+                del self.vid_queue[old if new <= old else old-1] # inserting before displaces later videos
+                await ctx.send(f"Moved **{self.vid_queue[old-1].title}** to position {new}.")
+            else:
+                await ctx.send("Invalid index.")
+        
         @self.command(name="skip")
         async def skip(ctx):
             if(self.vc == None):
@@ -194,6 +216,7 @@ class MusicBot(commands.Bot):
             await ctx.send("Stopping playback.")
             await self.vc.disconnect()
             self.vc = None
+            self.curr_vid = None
 
     def start_bot(self, token):
         self.init_commands()
@@ -217,3 +240,4 @@ if __name__ == "__main__":
 #       > much more involved and possibly flawed...
 #   > timestamps
 #   > check if user running command is in vc w/ bot
+#   > move queue pos
