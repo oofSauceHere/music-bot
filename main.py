@@ -15,9 +15,9 @@ class MusicBot(commands.Bot):
     # constructor
     def __init__(self, command_prefix, intents):
         super().__init__(command_prefix=command_prefix, intents=intents)
-        self.remove_command("help")
-        self.vc = None
+        self.remove_command("help") # uh oh
         self.vid_queue = deque()
+        self.vc = None
         self.loop_vid = False
         self.curr_vid = None
 
@@ -172,15 +172,29 @@ class MusicBot(commands.Bot):
             else:
                 await ctx.send("Invalid index.")
         
+        @self.command(name="clear")
+        async def clear(ctx):
+            if(not self.vid_queue):
+                await ctx.send("Queue is empty.")
+                return
+            
+            # bounds checking
+            self.vid_queue.clear()
+            await ctx.send("Cleared queue.")
+        
         # change position of video in queue
         @self.command(name="move")
-        async def move(ctx, old, new):
+        async def move(ctx, old=-1, new=-1):
             # bounds checking
+            if(old == -1 or new == -1):
+                await ctx.send("Please specify where to move from/to.")
+            print(old)
+            print(new)
             if(old <= len(self.vid_queue) and old > 0 and new <= len(self.vid_queue) and new > 0):
                 yt = self.vid_queue[old-1]
-                self.vid_queue.insert(new-1, yt)
-                del self.vid_queue[old if new <= old else old-1] # inserting before displaces later videos
-                await ctx.send(f"Moved **{self.vid_queue[old-1].title}** to position {new}.")
+                self.vid_queue.insert(new, yt)
+                del self.vid_queue[old-1] # inserting before displaces later videos
+                await ctx.send(f"Moved **{yt.title}** to position {new}.")
             else:
                 await ctx.send("Invalid index.")
         
@@ -240,4 +254,8 @@ if __name__ == "__main__":
 #       > much more involved and possibly flawed...
 #   > timestamps
 #   > check if user running command is in vc w/ bot
-#   > move queue pos
+#   > voting for skip
+#   > removeall
+#   > play via title?
+#   > lyrics?
+#   > loop all (be sure to add songs only after queue is empty)
