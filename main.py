@@ -1,14 +1,11 @@
 # i perhaps may hate python classes
 
 import os
-import io
 import asyncio
 import discord
 from collections import deque
 from discord.ext import commands
 import yt_dlp
-from pytubefix import YouTube
-from pytubefix.exceptions import VideoUnavailable
 from dotenv import load_dotenv
 load_dotenv()
 
