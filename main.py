@@ -6,10 +6,21 @@ import asyncio
 import discord
 from collections import deque
 from discord.ext import commands
+import yt_dlp
 from pytubefix import YouTube
 from pytubefix.exceptions import VideoUnavailable
 from dotenv import load_dotenv
 load_dotenv()
+
+YTDL_OPTS = {
+    'format': 'bestaudio/best',
+}
+
+FFMPEG_OPTS = {
+    'options': '-vn', # skip video
+}
+
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTS)
 
 class MusicBot(commands.Bot):
     # constructor
@@ -69,13 +80,14 @@ class MusicBot(commands.Bot):
             else:
                 # attempt to access YouTube link
                 try:
-                    yt = YouTube(link)
-                except VideoUnavailable:
+                    # yt = YouTube(link)
+                    yt =  ytdl.extract_info(link, download=False)
+                except yt_dlp.utils.DownloadError:
                     return
                 
                 # if in vc, inform user that video is queued up
                 if(self.vc != None):
-                    await ctx.send(f"Added **{yt.title}** to queue.")
+                    await ctx.send(f"Added **{yt["title"]}** to queue.")
                     self.vid_queue.append(yt)
                     return
                 else:
@@ -83,31 +95,26 @@ class MusicBot(commands.Bot):
             
             # connects to voice channel and idles while audio plays
             self.vc = await voice.channel.connect()
-            prev_audio = None # so looping works efficiently, without the need to re-acquire buffer
+            prev_source = None # so looping works efficiently, without the need to re-acquire source
             while((self.vid_queue or self.loop_vid) and self.vc != None):
-                audio_buffer = None
+                source = None
 
                 # if we're looping, make sure to line up same video
-                if(self.loop_vid and not prev_audio == None):
-                    audio_buffer = prev_audio
-                    audio_buffer.seek(0)
+                if(self.loop_vid and not prev_source == None):
+                    source = prev_source
                 else:
                     # remove front video from queue
                     yt = self.vid_queue[0]
                     self.vid_queue.popleft()
-                    
-                    # acquire byte buffer from video
-                    audio = yt.streams.filter(only_audio=True).first()
-                    audio_buffer = io.BytesIO()
-                    prev_audio = audio_buffer
-                    audio.stream_to_buffer(audio_buffer)
-                    audio_buffer.seek(0)
-                    # audio.download(filename="temp", mp3=True)
+
+                    # make async?
+                    source = discord.FFmpegPCMAudio(yt["url"], **FFMPEG_OPTS)
+                    prev_source = source
 
                 # play audio in vc
-                await ctx.send(f"Currently playing **{yt.title}**.")
-                self.vc.play(discord.FFmpegPCMAudio(source=audio_buffer, pipe=True)) # should we define "after" parameter?
-                self.curr_vid = yt.title
+                await ctx.send(f"Currently playing **{yt["title"]}**.")
+                self.vc.play(source) # should we define "after" parameter?
+                self.curr_vid = yt["title"]
 
                 # busy loop until song finishes
                 while(self.vc.is_playing() or self.vc.is_paused()):
@@ -136,7 +143,7 @@ class MusicBot(commands.Bot):
         async def queue(ctx):
             output = ""
             for i, yt in enumerate(self.vid_queue):
-                output = output + f"**{i+1} - {yt.title}**\n"
+                output = output + f"**{i+1} - {yt["title"]}**\n"
             
             if(self.vid_queue):
                 await ctx.send(output[:-1]) # strip final newline
@@ -151,11 +158,11 @@ class MusicBot(commands.Bot):
                 return
 
             try:
-                yt = YouTube(link)
-            except VideoUnavailable:
+                yt = ytdl.extract_info(link, download=False)
+            except yt_dlp.utils.DownloadError:
                 return
             
-            await ctx.send(f"Added **{yt.title}** to queue.")
+            await ctx.send(f"Added **{yt["title"]}** to queue.")
             self.vid_queue.append(yt)
         
         # remove video from queue (referenced via index)
@@ -188,13 +195,11 @@ class MusicBot(commands.Bot):
             # bounds checking
             if(old == -1 or new == -1):
                 await ctx.send("Please specify where to move from/to.")
-            print(old)
-            print(new)
             if(old <= len(self.vid_queue) and old > 0 and new <= len(self.vid_queue) and new > 0):
                 yt = self.vid_queue[old-1]
                 self.vid_queue.insert(new, yt)
                 del self.vid_queue[old-1] # inserting before displaces later videos
-                await ctx.send(f"Moved **{yt.title}** to position {new}.")
+                await ctx.send(f"Moved **{yt["title"]}** to position {new}.")
             else:
                 await ctx.send("Invalid index.")
         
@@ -242,14 +247,13 @@ def main():
     bot = MusicBot(command_prefix="$", intents=intents)
 
     bot.start_bot(token)
-
 if __name__ == "__main__":
     main()
 
 # TO-DOs
 #   > playlists (differentiate between servers?)
 #       > maybe server-wide playlists?
-#   > is it worth mapping links to byte buffers or will that be too space inefficient?
+#   > mapping links to sources (inefficient or awesome?)
 #   > maybe add function to convert spotify song title to youtube link?
 #       > much more involved and possibly flawed...
 #   > timestamps
