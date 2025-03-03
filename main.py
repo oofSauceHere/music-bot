@@ -46,6 +46,21 @@ class MusicBot(commands.Bot):
 
     # defining all discord commands (must be done inside function for use of "self.command")
     def init_commands(self):
+        @self.command(name="thej")
+        async def thej(ctx):
+            await ctx.send("""List of available commands:\n
+                    > play: plays video from given link OR resumes playback\n
+                    > playing: displays currently playing video\n
+                    > loop: loops currently playing video\n
+                    > queue: displays queue\n
+                    > add: adds video to queue\n
+                    > delete: deletes video from queue\n
+                    > clear: clears queue\n
+                    > move [old] [new]: moves video at old position to new position\n
+                    > skip: skips currently playing video\n
+                    > pause: pauses playback\n
+                    > stop: stops playback""")
+
         # i am aware of the stupidity of such an act but, because this bot is for my friends, it WILL be funny
         @self.command(name="help")
         async def help(ctx):
@@ -78,7 +93,7 @@ class MusicBot(commands.Bot):
                 # attempt to access YouTube link
                 try:
                     # yt = YouTube(link)
-                    yt =  ytdl.extract_info(link, download=False)
+                    yt = ytdl.extract_info(link, download=False)
                 except yt_dlp.utils.DownloadError:
                     return
                 
@@ -127,7 +142,7 @@ class MusicBot(commands.Bot):
             if(self.curr_vid == None):
                 await ctx.send("Not currently playing anything.")
                 return
-            await ctx.send(f"Currently playing **{self.curr_vid.title}**.")
+            await ctx.send(f"Currently playing **{self.curr_vid}**.")
 
         # toggle loop variable
         @self.command(name="loop")
@@ -171,7 +186,7 @@ class MusicBot(commands.Bot):
             
             # bounds checking
             if(index <= len(self.vid_queue) and index > 0):
-                await ctx.send(f"Removed **{self.vid_queue[index-1].title}** from queue.")
+                await ctx.send(f"Removed **{self.vid_queue[index-1]["title"]}** from queue.")
                 del self.vid_queue[index-1] # delete from deque via index
             else:
                 await ctx.send("Invalid index.")
